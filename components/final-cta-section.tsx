@@ -13,7 +13,7 @@ export function FinalCtaSection() {
   const [error, setError] = useState("")
 
   // Access code - must match the one in access-section.tsx
-  const ACCESS_CODE = "1234"
+  const ACCESS_CODE = "197664321"
 
   const handleCodeSubmit = () => {
     if (accessCode === ACCESS_CODE) {
