@@ -38,7 +38,10 @@ const CATEGORIES = [
   "Portrait",
   "Product",
   "Nature",
-  "The Everyday"
+  "The Everyday",
+  "Campaign",
+  "Editorial",
+  "Selfie"
 ]
 
 export default function AdminPage() {
@@ -639,8 +642,8 @@ export default function AdminPage() {
                 onError={() => console.error("[v0] Failed to load grid image:", prompt.image_url)}
               />
               
-              {/* Overlay on hover */}
-              <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 opacity-0 transition-opacity group-hover:opacity-100">
+              {/* Overlay - always visible on mobile, hover on desktop */}
+              <div className="absolute inset-0 flex flex-col justify-between bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                 <div className="flex justify-end">
                   <button
                     onClick={(e) => {
@@ -648,7 +651,8 @@ export default function AdminPage() {
                       e.preventDefault()
                       handleDeletePrompt(prompt.id, prompt.image_url)
                     }}
-                    className="rounded-lg bg-red-500/80 p-2 transition-colors hover:bg-red-500"
+                    className="rounded-lg bg-red-500/80 p-2 transition-colors hover:bg-red-500 active:bg-red-600"
+                    aria-label="Delete prompt"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
