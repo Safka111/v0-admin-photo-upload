@@ -27,6 +27,7 @@ export async function GET() {
     const { data: prompts, error } = await supabase
       .from("gallery_images")
       .select("*")
+      .neq("category", "__homepage__")
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false })
 

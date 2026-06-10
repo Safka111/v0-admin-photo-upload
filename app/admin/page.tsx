@@ -13,7 +13,9 @@ import {
   Loader2,
   Check,
   AlertCircle,
-  Database
+  Database,
+  Home,
+  RotateCcw
 } from "lucide-react"
 import Image from "next/image"
 
@@ -44,6 +46,28 @@ const CATEGORIES = [
   "Selfie"
 ]
 
+// The 17 homepage hero image slots (in display order). The `default` images
+// live in /public and map to slots 1-17 on the landing page.
+const HOMEPAGE_SLOTS = [
+  { slot: 1, default: "/portrait-1.jpg", label: "Fashion editorial portrait" },
+  { slot: 2, default: "/portrait-2.jpg", label: "Dreamy ethereal portrait" },
+  { slot: 3, default: "/portrait-3.jpg", label: "High fashion portrait" },
+  { slot: 4, default: "/portrait-4.jpg", label: "Natural light portrait" },
+  { slot: 5, default: "/portrait-5.jpg", label: "Artistic floral portrait" },
+  { slot: 6, default: "/portrait-6.jpg", label: "Beauty photography" },
+  { slot: 7, default: "/portrait-7.jpg", label: "Golden hour portrait" },
+  { slot: 8, default: "/portrait-8.jpg", label: "Cinematic portrait" },
+  { slot: 9, default: "/portrait-9.jpg", label: "Fresh natural beauty" },
+  { slot: 10, default: "/portrait-10.jpg", label: "Hollywood glamour" },
+  { slot: 11, default: "/portrait-11.jpg", label: "Bohemian style portrait" },
+  { slot: 12, default: "/portrait-12.jpg", label: "Minimalist portrait" },
+  { slot: 13, default: "/portrait-13.jpg", label: "Vintage inspired portrait" },
+  { slot: 14, default: "/portrait-14.jpg", label: "Urban chic portrait" },
+  { slot: 15, default: "/portrait-15.jpg", label: "Fantasy portrait" },
+  { slot: 16, default: "/portrait-16.jpg", label: "Professional headshot" },
+  { slot: 17, default: "/portrait-17.jpg", label: "Beach lifestyle portrait" },
+]
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -67,6 +91,11 @@ export default function AdminPage() {
   const [previewImageError, setPreviewImageError] = useState(false)
   const [previewImageRetries, setPreviewImageRetries] = useState(0)
 
+  // Home page pictures management
+  const [view, setView] = useState<"prompts" | "homepage">("prompts")
+  const [homepageOverrides, setHomepageOverrides] = useState<Record<number, string>>({})
+  const [homepageSlotLoading, setHomepageSlotLoading] = useState<number | null>(null)
+
   // Check authentication on mount
   useEffect(() => {
     checkAuth()
@@ -78,6 +107,7 @@ export default function AdminPage() {
       if (res.ok) {
         setIsAuthenticated(true)
         fetchPrompts()
+        fetchHomepageOverrides()
       }
     } catch (error) {
       console.error("Auth check error:", error)
@@ -103,6 +133,7 @@ export default function AdminPage() {
         setAuthToken(password) // Store for API calls
         setPassword("")
         fetchPrompts()
+        fetchHomepageOverrides()
       } else {
         const data = await res.json()
         setAuthError(data.error || "Invalid password")
@@ -295,6 +326,124 @@ export default function AdminPage() {
     }
   }
 
+  const fetchHomepageOverrides = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/homepage")
+      if (res.ok) {
+        const data = await res.json()
+        setHomepageOverrides(data.overrides || {})
+      }
+    } catch (error) {
+      console.error("Fetch homepage overrides error:", error)
+    }
+  }, [])
+
+  const handleHomepageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    slot: number,
+  ) => {
+    const file = e.target.files?.[0]
+    e.target.value = "" // allow re-selecting the same file later
+    if (!file) return
+
+    // Client-side size guard (max 700KB)
+    const maxSize = 700 * 1024
+    if (file.size > maxSize) {
+      showNotification("error", "File too large. Maximum size is 700KB. Please compress your image first.")
+      return
+    }
+
+    let token = authToken
+    if (!token) {
+      const pwd = window.prompt("Please enter your admin password to upload:")
+      if (!pwd) {
+        showNotification("error", "Password required for upload")
+        return
+      }
+      token = pwd
+      setAuthToken(pwd)
+    }
+
+    setHomepageSlotLoading(slot)
+    try {
+      // Upload the file to R2 first
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("auth", token)
+
+      const uploadRes = await fetch("/api/admin/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!uploadRes.ok) {
+        const contentType = uploadRes.headers.get("content-type")
+        if (contentType?.includes("application/json")) {
+          const data = await uploadRes.json()
+          throw new Error(data.error || "Upload failed")
+        }
+        throw new Error("Upload failed. Please try a smaller image (max 700KB).")
+      }
+
+      const { url } = await uploadRes.json()
+
+      // Persist the override for this slot
+      const saveRes = await fetch("/api/admin/homepage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": token,
+        },
+        body: JSON.stringify({ slot, image_url: url }),
+      })
+
+      if (!saveRes.ok) {
+        const data = await saveRes.json()
+        throw new Error(data.error || "Failed to save homepage image")
+      }
+
+      setHomepageOverrides((prev) => ({ ...prev, [slot]: url }))
+      showNotification("success", `Home page picture ${slot} updated`)
+    } catch (error) {
+      console.error("Homepage upload error:", error)
+      const errorMessage = error instanceof Error ? error.message : "Upload failed"
+      if (errorMessage.includes("Unauthorized")) {
+        setAuthToken("")
+      }
+      showNotification("error", errorMessage)
+    } finally {
+      setHomepageSlotLoading(null)
+    }
+  }
+
+  const handleHomepageReset = async (slot: number) => {
+    if (!confirm(`Reset home page picture ${slot} back to the default?`)) return
+
+    setHomepageSlotLoading(slot)
+    try {
+      const res = await fetch(`/api/admin/homepage?slot=${slot}`, {
+        method: "DELETE",
+        headers: { "x-admin-password": authToken },
+      })
+
+      if (res.ok) {
+        setHomepageOverrides((prev) => {
+          const next = { ...prev }
+          delete next[slot]
+          return next
+        })
+        showNotification("success", `Home page picture ${slot} reset to default`)
+      } else {
+        showNotification("error", "Failed to reset home page picture")
+      }
+    } catch (error) {
+      console.error("Homepage reset error:", error)
+      showNotification("error", "Failed to reset home page picture")
+    } finally {
+      setHomepageSlotLoading(null)
+    }
+  }
+
   const handlePreviewImageError = () => {
     console.log("[v0] Preview image failed to load, URL:", newPrompt.image_url, "Retries:", previewImageRetries)
     setPreviewImageError(true)
@@ -406,22 +555,44 @@ export default function AdminPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <h1 className="text-xl font-bold">Prompt Admin</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-white/60">{prompts.length} prompts</span>
+          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-4">
+            <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
+              <button
+                onClick={() => setView("prompts")}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  view === "prompts" ? "bg-[#9E3248] text-white" : "text-white/60 hover:text-white"
+                }`}
+              >
+                <ImageIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Prompts</span>
+              </button>
+              <button
+                onClick={() => setView("homepage")}
+                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  view === "homepage" ? "bg-[#9E3248] text-white" : "text-white/60 hover:text-white"
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Home Page Pictures</span>
+                <span className="sm:hidden">Home</span>
+              </button>
+            </div>
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm transition-colors hover:bg-white/5"
             >
               <LogOut className="h-4 w-4" />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8">
+        {view === "prompts" && (
+        <>
         {/* Action Buttons */}
         <div className="mb-8 flex flex-wrap gap-4">
           <button
@@ -675,6 +846,89 @@ export default function AdminPage() {
           <div className="py-20 text-center">
             <ImageIcon className="mx-auto mb-4 h-12 w-12 text-white/20" />
             <p className="text-white/60">No prompts yet. Add your first one!</p>
+          </div>
+        )}
+        </>
+        )}
+
+        {view === "homepage" && (
+          <div>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold">Home Page Pictures</h2>
+              <p className="mt-1 text-sm text-white/60">
+                Replace any of the 17 scattered pictures shown on your landing page hero.
+                Uploads must be 700KB or smaller. Changes appear on the home page right away.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {HOMEPAGE_SLOTS.map(({ slot, default: defaultSrc, label }) => {
+                const currentSrc = homepageOverrides[slot] || defaultSrc
+                const isCustom = Boolean(homepageOverrides[slot])
+                const isBusy = homepageSlotLoading === slot
+
+                return (
+                  <div
+                    key={slot}
+                    className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5"
+                  >
+                    <div className="relative aspect-[4/5]">
+                      <img
+                        src={currentSrc || "/placeholder.svg"}
+                        alt={label}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        crossOrigin="anonymous"
+                      />
+
+                      {/* Slot badge */}
+                      <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white">
+                        #{slot}
+                      </span>
+                      {isCustom && (
+                        <span className="absolute right-2 top-2 rounded-full bg-[#9E3248] px-2 py-0.5 text-xs font-medium text-white">
+                          Custom
+                        </span>
+                      )}
+
+                      {isBusy && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                          <Loader2 className="h-7 w-7 animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Controls - always visible (works on mobile + desktop) */}
+                    <div className="flex items-center gap-2 p-2">
+                      <label
+                        className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#9E3248] px-2 py-2 text-xs font-medium text-white transition-colors hover:bg-[#B73D56] ${
+                          isBusy ? "pointer-events-none opacity-60" : ""
+                        }`}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleHomepageUpload(e, slot)}
+                          className="hidden"
+                          disabled={isBusy}
+                        />
+                        <Upload className="h-3.5 w-3.5" />
+                        Replace
+                      </label>
+                      {isCustom && (
+                        <button
+                          onClick={() => handleHomepageReset(slot)}
+                          disabled={isBusy}
+                          aria-label={`Reset picture ${slot} to default`}
+                          className="rounded-lg border border-white/10 p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
       </main>

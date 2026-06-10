@@ -277,6 +277,28 @@ export default function Home() {
     }
   }, [imagesLoaded, totalImages])
 
+  useEffect(() => {
+    // Fetch homepage image overrides set from the admin panel
+    let cancelled = false
+    fetch("/api/admin/homepage")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.overrides) return
+        const overrides = data.overrides as Record<string, string>
+        setImages((prev) =>
+          prev.map((img, i) => {
+            const slot = i + 1
+            const url = overrides[slot]
+            return url ? { ...img, src: url } : img
+          }),
+        )
+      })
+      .catch((error) => console.error("Error fetching homepage overrides:", error))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleMouseDown = (e: React.MouseEvent, index: number) => {
     e.preventDefault()
     setDraggingIndex(index)
