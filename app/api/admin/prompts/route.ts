@@ -23,7 +23,6 @@ async function isAuthenticated(request: NextRequest) {
 export async function GET() {
   try {
     const supabase = createAdminClient()
-    
     const { data: prompts, error } = await supabase
       .from("gallery_images")
       .select("*")
