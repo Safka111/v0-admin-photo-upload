@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('gallery_images')

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 
 const ADMIN_COOKIE_NAME = "admin_session"
 const HOMEPAGE_CATEGORY = "__homepage__"
@@ -22,7 +22,7 @@ async function isAuthenticated(request: NextRequest) {
 // GET - Fetch all homepage image overrides as a slot -> url map (public)
 export async function GET() {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from("gallery_images")
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing image_url" }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     // Check if an override already exists for this slot
     const { data: existing } = await supabase
@@ -121,7 +121,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Invalid slot" }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from("gallery_images")

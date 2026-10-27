@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 
 const ADMIN_COOKIE_NAME = "admin_session"
 
@@ -22,7 +22,8 @@ async function isAuthenticated(request: NextRequest) {
 // GET - Fetch all prompts
 export async function GET() {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
+    
     const { data: prompts, error } = await supabase
       .from("gallery_images")
       .select("*")
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from("gallery_images")
@@ -94,7 +95,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Prompt ID required" }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {}
     if (category !== undefined) updateData.category = category
@@ -136,7 +137,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Prompt ID required" }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from("gallery_images")

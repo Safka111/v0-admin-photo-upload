@@ -158,17 +158,13 @@ export default function AdminPage() {
 
   const fetchPrompts = async () => {
     try {
-      const res = await fetch("/api/admin/prompts", { cache: "no-store" })
-      const data = await res.json()
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load prompts")
+      const res = await fetch("/api/admin/prompts")
+      if (res.ok) {
+        const data = await res.json()
+        setPrompts(data.prompts || [])
       }
-
-      setPrompts(data.prompts || [])
     } catch (error) {
       console.error("Fetch prompts error:", error)
-      showNotification("error", "Prompts could not be loaded. Your saved entries have not been deleted.")
     }
   }
 
@@ -236,7 +232,7 @@ export default function AdminPage() {
       setNewPrompt(prev => ({ ...prev, image_url: data.url }))
       setPreviewImageError(false)
       setPreviewImageRetries(0)
-      showNotification("success", "Image uploaded. Press Add Prompt to save it.")
+      showNotification("success", "Image uploaded successfully")
     } catch (error) {
       console.error("Upload error:", error)
       const errorMessage = error instanceof Error ? error.message : "Upload failed"
@@ -270,11 +266,8 @@ export default function AdminPage() {
         body: JSON.stringify(newPrompt),
       })
 
-      const data = await res.json()
-
-      if (res.ok && data.prompt) {
-        setPrompts((current) => [data.prompt, ...current])
-        showNotification("success", "Prompt saved successfully")
+      if (res.ok) {
+        showNotification("success", "Prompt added successfully")
         setNewPrompt({
           category: "Beauty",
           image_url: "",
@@ -284,9 +277,10 @@ export default function AdminPage() {
         })
         setPreviewImage(null)
         setIsAddingPrompt(false)
-        void fetchPrompts()
+        fetchPrompts()
       } else {
-        showNotification("error", data.error || "Failed to save prompt. Your form is still open.")
+        const data = await res.json()
+        showNotification("error", data.error || "Failed to add prompt")
       }
     } catch (error) {
       console.error("Add prompt error:", error)

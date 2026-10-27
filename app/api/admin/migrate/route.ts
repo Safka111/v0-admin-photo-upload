@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
 
 const ADMIN_COOKIE_NAME = "admin_session"
 
@@ -63,7 +63,7 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     // Check how many prompts already exist
     const { count: existingCount } = await supabase
@@ -110,7 +110,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
 
     const { count } = await supabase
       .from("gallery_images")
